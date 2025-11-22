@@ -37,16 +37,10 @@ namespace EvCharge.Api.Controllers
             InterestMethod = t.InterestMethod,
             MinimumBalance = t.MinimumBalance,
             IsActive = t.IsActive,
-            Attributes = (t.Attributes is null) ? null : MongoBsonToPlain(t.Attributes),
+            Attributes = (t.Attributes is null) ? null : MongoDB.Bson.Serialization.BsonSerializer.Deserialize<Dictionary<string, object>>(t.Attributes),
             TotalBalanceAllAccounts = t.TotalBalanceAllAccounts,
             TotalInterestPaidToDate = t.TotalInterestPaidToDate
         };
-
-        private static object MongoBsonToPlain(BsonDocument doc)
-        {
-            // Convert to plain dictionary for Swagger readability
-            return MongoDB.Bson.Serialization.BsonSerializer.Deserialize<Dictionary<string, object>>(doc);
-        }
 
         // GET /api/accounttypes
         [HttpGet]
@@ -75,16 +69,11 @@ namespace EvCharge.Api.Controllers
             var exists = await _repo.GetByTypeIdAsync(req.TypeId);
             if (exists != null) return Conflict(new { message = "TypeId already exists." });
 
-            // Validate per-interest-method constraints
-            if (req.InterestMethod == InterestMethod.FD_Maturity && req.Attributes == null)
-            {
-                // Strongly encourage passing an FD rate table
-                // But don't hard block; we can allow adding it later.
-            }
-
             var attrsBson = req.Attributes is null
                 ? null
-                : BsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(req.Attributes));
+                : MongoDB.Bson.Serialization.BsonSerializer.Deserialize<BsonDocument>(
+                    System.Text.Json.JsonSerializer.Serialize(req.Attributes)
+                  );
 
             var entity = new AccountType
             {
@@ -121,7 +110,9 @@ namespace EvCharge.Api.Controllers
             existing.MinimumBalance = req.MinimumBalance;
             existing.Attributes = req.Attributes is null
                 ? null
-                : BsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(req.Attributes));
+                : MongoDB.Bson.Serialization.BsonSerializer.Deserialize<BsonDocument>(
+                    System.Text.Json.JsonSerializer.Serialize(req.Attributes)
+                  );
 
             await _repo.UpdateAsync(typeId, existing);
             return NoContent();

@@ -3,7 +3,8 @@
 // Description: Mongo data access for AccountType (catalog)
 // Notes:
 //  - Ensures unique index on TypeId
-//  - Totals are updated by Account/Transaction services (not by admin endpoints)
+//  - Totals are updated by Account/Transaction services
+//  - SafeUpdateTotalsAsync auto-recovers if old docs had string totals
 // =============================================
 using EvCharge.Api.Domain;
 using MongoDB.Bson;
@@ -39,10 +40,8 @@ namespace EvCharge.Api.Repositories
         public Task<AccountType?> GetByObjectIdAsync(string id) =>
             _types.Find(t => t.Id == id).FirstOrDefaultAsync();
 
-        public async Task CreateAsync(AccountType entity)
-        {
+        public async Task CreateAsync(AccountType entity) =>
             await _types.InsertOneAsync(entity);
-        }
 
         public Task UpdateAsync(string typeId, AccountType updated) =>
             _types.ReplaceOneAsync(t => t.TypeId == typeId, updated);
@@ -53,7 +52,6 @@ namespace EvCharge.Api.Repositories
                 Builders<AccountType>.Update.Set(t => t.IsActive, isActive)
             );
 
-        // System-side: totals maintenance hooks (called by accounts/transactions later)
         public Task UpdateTotalsAsync(string typeId, decimal totalBalanceDelta, decimal interestPaidDelta) =>
             _types.UpdateOneAsync(
                 Builders<AccountType>.Filter.Eq(t => t.TypeId, typeId),
@@ -61,5 +59,26 @@ namespace EvCharge.Api.Repositories
                     .Inc(t => t.TotalBalanceAllAccounts, totalBalanceDelta)
                     .Inc(t => t.TotalInterestPaidToDate, interestPaidDelta)
             );
+
+        // ---- hardened method that auto-fixes legacy string totals and retries ----
+        public async Task SafeUpdateTotalsAsync(string typeId, decimal totalBalanceDelta, decimal interestPaidDelta)
+        {
+            try
+            {
+                await UpdateTotalsAsync(typeId, totalBalanceDelta, interestPaidDelta);
+            }
+            catch (MongoWriteException ex) when (ex.WriteError?.Code == 14)
+            {
+                // Legacy doc had totals as strings. Coerce both to 0 and retry.
+                await _types.UpdateOneAsync(
+                    Builders<AccountType>.Filter.Eq(t => t.TypeId, typeId),
+                    Builders<AccountType>.Update
+                        .Set(t => t.TotalBalanceAllAccounts, 0m)
+                        .Set(t => t.TotalInterestPaidToDate, 0m)
+                );
+
+                await UpdateTotalsAsync(typeId, totalBalanceDelta, interestPaidDelta);
+            }
+        }
     }
 }

@@ -6,11 +6,10 @@
 //  - AccountType must exist, be active, and category must match Member.Type
 //  - One account per (MemberId, TypeCode)
 //  - MinimumBalance enforced on withdrawals
-//  - AccountType totals maintained
+//  - AccountType totals maintained (safe updater)
 // =============================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MongoDB.Bson;
 using EvCharge.Api.Domain;
 using EvCharge.Api.DTOs;
 using EvCharge.Api.Repositories;
@@ -26,18 +25,15 @@ namespace EvCharge.Api.Controllers
         private readonly AccountTypeRepository _types;
         private readonly AccountRepository _accounts;
         private readonly TransactionRepository _txns;
-        private readonly IConfiguration _config;
 
         public AccountsController(IConfiguration config)
         {
-            _config   = config;
             _members  = new MemberRepository(config);
             _types    = new AccountTypeRepository(config);
             _accounts = new AccountRepository(config);
             _txns     = new TransactionRepository(config);
         }
 
-        // Helper: map
         private static AccountResponse Map(Account a) => new AccountResponse
         {
             Id = a.Id,
@@ -106,17 +102,14 @@ namespace EvCharge.Api.Controllers
                 AccruedInterest = 0m,
                 OpenedOnUtc = DateTime.UtcNow
             };
-
             await _accounts.CreateAsync(acc);
 
             // Initial deposit (optional)
             if (req.InitialDeposit > 0m)
             {
-                // min balance rule: deposit never violates min balance
                 await ApplyDeposit(acc, type, req.InitialDeposit, "Initial deposit");
             }
 
-            // Return
             var fresh = await _accounts.GetAsync(req.MemberId, req.TypeCode);
             return CreatedAtAction(nameof(GetOne), new { memberId = req.MemberId, typeCode = req.TypeCode }, Map(fresh!));
         }
@@ -233,8 +226,8 @@ namespace EvCharge.Api.Controllers
             };
             await _txns.CreateAsync(txn);
 
-            // Update AccountType totals (balance up)
-            await _types.UpdateTotalsAsync(type.TypeId, totalBalanceDelta: amount, interestPaidDelta: 0m);
+            // Update AccountType totals (balance up) - safe updater to auto-fix legacy string fields
+            await _types.SafeUpdateTotalsAsync(type.TypeId, totalBalanceDelta: amount, interestPaidDelta: 0m);
         }
 
         private async Task ApplyWithdrawal(Account acc, AccountType type, decimal amount, string narration)
@@ -256,8 +249,8 @@ namespace EvCharge.Api.Controllers
             };
             await _txns.CreateAsync(txn);
 
-            // Totals (balance down)
-            await _types.UpdateTotalsAsync(type.TypeId, totalBalanceDelta: -amount, interestPaidDelta: 0m);
+            // Totals (balance down) - safe updater
+            await _types.SafeUpdateTotalsAsync(type.TypeId, totalBalanceDelta: -amount, interestPaidDelta: 0m);
         }
     }
 }

@@ -4,7 +4,6 @@
 //  - Unique index on (MemberId, TypeCode)
 // =============================================
 using EvCharge.Api.Domain;
-using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace EvCharge.Api.Repositories

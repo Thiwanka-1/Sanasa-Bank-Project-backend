@@ -7,15 +7,6 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace EvCharge.Api.Domain
 {
-    public enum TxnType
-    {
-        Deposit = 1,
-        Withdrawal = 2,
-        InterestCredit = 3,
-        Adjustment = 4
-        // (FD/Share types will be added when those modules are implemented)
-    }
-
     public class Transaction
     {
         [BsonId]
@@ -36,6 +27,7 @@ namespace EvCharge.Api.Domain
         public TxnType TxnType { get; set; }
 
         [BsonElement("amount")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal Amount { get; set; } = 0m; // always positive; sign implied by TxnType
 
         [BsonElement("narration")]
@@ -49,6 +41,7 @@ namespace EvCharge.Api.Domain
 
         // Snapshot after applying this txn
         [BsonElement("balanceAfterTxn")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal BalanceAfterTxn { get; set; } = 0m;
     }
 }

@@ -4,7 +4,6 @@
 // =============================================
 using System.ComponentModel.DataAnnotations;
 using EvCharge.Api.Domain;
-using MongoDB.Bson;
 
 namespace EvCharge.Api.DTOs
 {
@@ -68,11 +67,7 @@ namespace EvCharge.Api.DTOs
         public InterestMethod InterestMethod { get; set; }
         public decimal MinimumBalance { get; set; }
         public bool IsActive { get; set; }
-
-        // Attributes serialized back as plain object for Swagger readability
-        public object? Attributes { get; set; }
-
-        // Read-only totals
+        public object? Attributes { get; set; }               // plain object for Swagger
         public decimal TotalBalanceAllAccounts { get; set; }
         public decimal TotalInterestPaidToDate { get; set; }
     }

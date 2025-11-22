@@ -10,13 +10,6 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace EvCharge.Api.Domain
 {
-    public enum AccountStatus
-    {
-        Active = 1,
-        Inactive = 2,
-        Closed = 3
-    }
-
     public class Account
     {
         [BsonId]
@@ -39,9 +32,11 @@ namespace EvCharge.Api.Domain
 
         // Running balances
         [BsonElement("principalBalance")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal PrincipalBalance { get; set; } = 0m;
 
         [BsonElement("accruedInterest")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal AccruedInterest { get; set; } = 0m;
 
         [BsonElement("openedOnUtc")]

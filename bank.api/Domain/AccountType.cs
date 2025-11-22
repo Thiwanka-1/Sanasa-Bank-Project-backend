@@ -25,28 +25,32 @@ namespace EvCharge.Api.Domain
         [BsonElement("typeName")]
         public string TypeName { get; set; } = string.Empty; // e.g., "Savings", "Fixed Deposit"
 
+        // 0..1; null for types without interest (e.g., Shares)
         [BsonElement("interestRateAnnual")]
-        public decimal? InterestRateAnnual { get; set; } = null; // 0..1; null for Shares
+        [BsonRepresentation(BsonType.Decimal128)]
+        public decimal? InterestRateAnnual { get; set; } = null;
 
         [BsonElement("interestMethod")]
         public InterestMethod InterestMethod { get; set; } = InterestMethod.None;
 
         [BsonElement("minimumBalance")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal MinimumBalance { get; set; } = 0m;
 
         [BsonElement("isActive")]
         public bool IsActive { get; set; } = true;
 
         // Optional type-specific attributes (stored as raw JSON/BSON)
-        // e.g., FD: { "RateTable":[{"TenorDays":180,"Rate":0.055},{"TenorDays":365,"Rate":0.065}], "DefaultTenorDays":365 }
         [BsonElement("attributes")]
         public BsonDocument? Attributes { get; set; } = null;
 
         // System-maintained totals (read-only via API)
         [BsonElement("totalBalanceAllAccounts")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal TotalBalanceAllAccounts { get; set; } = 0m;
 
         [BsonElement("totalInterestPaidToDate")]
+        [BsonRepresentation(BsonType.Decimal128)]
         public decimal TotalInterestPaidToDate { get; set; } = 0m;
     }
 }

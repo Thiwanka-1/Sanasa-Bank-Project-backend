@@ -18,4 +18,19 @@ namespace EvCharge.Api.Domain
         FD_Maturity = 2,          // fixed deposit: pay at maturity (tenor-based)
         Dividend_Like = 3         // shares: dividend-like logic (no interest)
     }
+
+    public enum AccountStatus
+    {
+        Active = 1,
+        Inactive = 2,
+        Closed = 3
+    }
+
+    public enum TxnType
+    {
+        Deposit = 1,
+        Withdrawal = 2,
+        InterestCredit = 3,
+        Adjustment = 4
+    }
 }

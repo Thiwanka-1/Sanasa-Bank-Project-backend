@@ -16,8 +16,6 @@ namespace EvCharge.Api.DTOs
 
         [Range(0, double.MaxValue)]
         public decimal InitialDeposit { get; set; } = 0m;
-
-        // For FD (future), optional: tenor etc. You can extend later.
     }
 
     public class AccountResponse
