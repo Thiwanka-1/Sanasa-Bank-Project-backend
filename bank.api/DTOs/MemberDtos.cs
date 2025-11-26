@@ -6,16 +6,15 @@ using EvCharge.Api.Domain;
 
 namespace EvCharge.Api.DTOs
 {
-    // Client types "raw" numeric id they want (e.g., "1", "23", or "001").
-    // Server stores with 100/200 prefix based on Type.
     public class CreateMemberRequest
     {
-        [Required]
-        public PartyType Type { get; set; } = PartyType.Member;
+        // e.g., "1" or "001" → we will pad to at least 3 digits
+        [Required, RegularExpression(@"^\d{1,}$", ErrorMessage = "BaseId must be digits only.")]
+        public string BaseId { get; set; } = string.Empty;
 
-        // Accept 1–6 digits; no spaces; we’ll normalize server-side
-        [Required, RegularExpression(@"^\d{1,6}$", ErrorMessage = "EnteredId must be 1–6 digits (e.g., 1, 23, 001).")]
-        public string EnteredId { get; set; } = string.Empty;
+        // Member or NonMember
+        [Required]
+        public PartyType Type { get; set; }
 
         [Required, MinLength(2), MaxLength(120)]
         public string Name { get; set; } = string.Empty;
@@ -42,7 +41,7 @@ namespace EvCharge.Api.DTOs
     public class MemberResponse
     {
         public string Id { get; set; } = string.Empty;
-        public string MemberId { get; set; } = string.Empty;  // stored 100*/200* form
+        public string MemberId { get; set; } = string.Empty;
         public PartyType Type { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;

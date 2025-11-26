@@ -42,3 +42,6 @@ namespace EvCharge.Api.DTOs
         public string? Type { get; set; } // "Deposit", "Withdrawal", etc. optional
     }
 }
+
+
+

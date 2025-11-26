@@ -31,6 +31,8 @@ namespace EvCharge.Api.Domain
         Deposit = 1,
         Withdrawal = 2,
         InterestCredit = 3,
-        Adjustment = 4
+        Adjustment = 4,
+        InterestReversal = 5   // <— add this; used by reversal endpoint
+
     }
 }

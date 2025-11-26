@@ -1,8 +1,5 @@
 // =============================================
 // File: MembersController.cs
-// Notes:
-//  - Stored MemberId = 100/200 + entered number (entered "1" => "1001"/"2001")
-//  - Stored MemberId is also the account number for ALL their accounts
 // =============================================
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
@@ -18,37 +15,20 @@ namespace EvCharge.Api.Controllers
     public class MembersController : ControllerBase
     {
         private readonly MemberRepository _repo;
+        private readonly AccountRepository _accounts;
 
         public MembersController(IConfiguration config)
         {
             _repo = new MemberRepository(config);
+            _accounts = new AccountRepository(config);
         }
 
-        // Optional helper to normalize numeric input
-        private static string BuildStoredMemberId(PartyType type, string enteredId)
-        {
-            // Normalize numeric (strip leading zeros via parse); keep "0" if all zeros
-            var n = int.Parse(string.IsNullOrEmpty(enteredId) ? "0" : enteredId);
-            var prefix = type == PartyType.Member ? "100" : "200";
-            return $"{prefix}{n}";
-        }
-
-        // GET /api/members?status=Active|Inactive&partyType=Member|NonMember (both optional)
+        // GET /api/members?status=Active|Inactive
         [HttpGet]
-        public async Task<ActionResult<List<MemberResponse>>> GetAll(
-            [FromQuery] MemberStatus? status,
-            [FromQuery] PartyType? partyType)
+        public async Task<ActionResult<List<MemberResponse>>> GetAll([FromQuery] MemberStatus? status)
         {
-            List<Member> list;
-
-            if (status.HasValue && partyType.HasValue)
-                list = (await _repo.GetByStatusAsync(status.Value)).Where(m => m.Type == partyType.Value).ToList();
-            else if (status.HasValue)
-                list = await _repo.GetByStatusAsync(status.Value);
-            else if (partyType.HasValue)
-                list = await _repo.GetByTypeAsync(partyType.Value);
-            else
-                list = await _repo.GetAllAsync();
+            var list = status.HasValue ? await _repo.GetByStatusAsync(status.Value)
+                                       : await _repo.GetAllAsync();
 
             return list.Select(m => new MemberResponse
             {
@@ -79,21 +59,51 @@ namespace EvCharge.Api.Controllers
             };
         }
 
+        // Helper: compute final visible MemberId
+       private static string BuildMemberId(string baseId, PartyType type)
+{
+    if (baseId == null) throw new ArgumentException("BaseId is required.");
+
+    // Keep only digits and trim whitespace
+    var digits = baseId.Trim();
+    if (digits.Length == 0 || !digits.All(char.IsDigit))
+        throw new ArgumentException("BaseId must be digits only.");
+
+    // Normalize: remove leading zeros (so "001" -> "1")
+    // If everything was zeros, treat as invalid (we don't allow id 0)
+    digits = digits.TrimStart('0');
+    if (string.IsNullOrEmpty(digits))
+        throw new ArgumentException("BaseId cannot be zero.");
+
+    var prefix = (type == PartyType.Member) ? "100" : "200";
+    return prefix + digits;   // e.g., 200 + 2 -> 2002, 100 + 15 -> 10015
+}
+
+
         // POST /api/members
         [HttpPost]
         public async Task<ActionResult<MemberResponse>> Create([FromBody] CreateMemberRequest req)
         {
             if (!ModelState.IsValid) return ValidationProblem(ModelState);
 
-            var storedId = BuildStoredMemberId(req.Type, req.EnteredId);
+            // Compute visible id
+            string finalMemberId;
+            try
+            {
+                finalMemberId = BuildMemberId(req.BaseId, req.Type);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
 
-            // prevent duplicates on the final stored id
-            var exists = await _repo.GetByMemberIdAsync(storedId);
+            // prevent duplicates
+            var exists = await _repo.GetByMemberIdAsync(finalMemberId);
             if (exists != null) return Conflict(new { message = "MemberId already exists." });
 
             var entity = new Member
             {
-                MemberId = storedId,
+                MemberId = finalMemberId,
                 Type = req.Type,
                 Name = req.Name,
                 Address = req.Address,
@@ -116,7 +126,6 @@ namespace EvCharge.Api.Controllers
         }
 
         // PUT /api/members/{memberId}
-        // Only name/address are editable; MemberId + Type are immutable
         [HttpPut("{memberId}")]
         public async Task<IActionResult> Update(string memberId, [FromBody] UpdateMemberRequest req)
         {
@@ -139,11 +148,14 @@ namespace EvCharge.Api.Controllers
             var existing = await _repo.GetByMemberIdAsync(memberId);
             if (existing == null) return NotFound();
 
+            // 1) Update member status
             await _repo.SetStatusAsync(memberId, req.Status);
 
-            // TODO when Accounts exist:
-            // cascade account status and pause interest
-            return Ok(new { message = $"Member {memberId} status set to {req.Status}" });
+            // 2) Cascade to all accounts
+            var targetStatus = req.Status == MemberStatus.Active ? AccountStatus.Active : AccountStatus.Inactive;
+            await _accounts.SetStatusForMemberAsync(memberId, targetStatus);
+
+            return Ok(new { message = $"Member {memberId} status set to {req.Status} and cascaded to accounts ({targetStatus})." });
         }
 
         // DELETE /api/members/{memberId}
@@ -153,7 +165,7 @@ namespace EvCharge.Api.Controllers
             var existing = await _repo.GetByMemberIdAsync(memberId);
             if (existing == null) return NotFound();
 
-            // TODO when Accounts exist: prevent delete if accounts present
+            // TODO: prevent delete if accounts exist (or soft delete)
             await _repo.DeleteByMemberIdAsync(memberId);
             return NoContent();
         }

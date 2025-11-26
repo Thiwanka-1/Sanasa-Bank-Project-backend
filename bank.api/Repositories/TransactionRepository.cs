@@ -41,5 +41,18 @@ namespace EvCharge.Api.Repositories
 
             return _txns.Find(filter).SortBy(t => t.EffectiveOnUtc).ToListAsync();
         }
+
+        // For reversal: all interest credits belonging to a posted batch for a given type+quarter
+        public Task<List<Transaction>> GetInterestCreditsForBatchAsync(string typeCode, string quarterKey, DateTime quarterEndUtc)
+        {
+            var filter = Builders<Transaction>.Filter.Where(t =>
+                t.TypeCode == typeCode &&
+                t.TxnType == TxnType.InterestCredit &&
+                t.EffectiveOnUtc == quarterEndUtc &&
+                t.Narration == $"Quarterly interest {quarterKey}"
+            );
+
+            return _txns.Find(filter).ToListAsync();
+        }
     }
 }
